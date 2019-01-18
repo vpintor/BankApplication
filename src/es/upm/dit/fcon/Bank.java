@@ -47,6 +47,34 @@ public class Bank {
 		}	
 	}
 	
+	private void sendCreateClient(Client client) {
+		String operation = "";
+		String type = "CREATE";
+		String account_number = client.getAccountNumber().toString();
+		String name = client.getName();
+		String balance = Integer.toString(client.getBalance());
+		operation = type + "," + account_number + "," + name + "," + balance;
+		System.out.println(operation);
+	}
+	
+	private void sendUpdateClient(Client client) {
+		String operation = "";
+		String type = "UPDATE";
+		String account_number = client.getAccountNumber().toString();
+		String name = client.getName();
+		String balance = Integer.toString(client.getBalance());
+		operation = type + "," + account_number + "," + name + "," + balance;
+		System.out.println(operation);
+	}
+	
+	private void sendDeleteClient(Long id) {
+		String operation = "";
+		String type = "DELETE";
+		String account_number = id.toString();
+		operation = type + "," + account_number;
+		System.out.println(operation);
+	}
+	
 	public Client readScanner(Scanner sc) {
 		Long accNumber = (long) 0;
 		String name   = null;
@@ -86,13 +114,17 @@ public class Bank {
 	
 	public static void main(String[] args) {
 		// TODO Auto-generated method stub
+		
 		Bank bank = new Bank();
 		Scanner sc = new Scanner(System.in);
 		boolean salir = false;
 		Long accNumber   = (long) 0;
-		int balance     = 0;
+		int balance = 0;
 		Client client   = null;
-		int     menuKey = 0;
+		int menuKey = 0;
+		String operation = "";
+		Client c;
+		
 		while(!salir) {
 			try {
 				System. out .println(">>> Enter operation client.: 1) Create. 2) Read. 3) Update. 4) Delete. 5) ReadAll. 6) Exit");
@@ -104,8 +136,11 @@ public class Bank {
 				}
 				
 				switch (menuKey) {
+				
 				case 1: // Create client
-					bank.createClient(bank.readScanner(sc));
+					c = bank.readScanner(sc);
+					bank.sendCreateClient(c);
+					bank.createClient(c);
 					break;
 				case 2: // Read client
 					System. out .print(">>> Enter account number (int) = ");
@@ -119,14 +154,17 @@ public class Bank {
 					}
 					break;
 				case 3: // Update client
-					
-					bank.updateClient(bank.readScanner(sc));
+					c = bank.readScanner(sc);
+					bank.sendUpdateClient(c);
+					bank.updateClient(c);
+
 					break;
 				case 4: // Delete client
 					System. out .print(">>> Enter account number (int) = ");
 					if (sc.hasNextInt()) {
 						accNumber = (long) sc.nextInt();
 						String name = bank.getClients().get(accNumber).getName();
+						bank.sendDeleteClient(accNumber);
 						boolean status = bank.deleteClient(accNumber);
 						if (status) {
 							System.out.println("El cliente " +name+ " se ha borrado correctamente.");
