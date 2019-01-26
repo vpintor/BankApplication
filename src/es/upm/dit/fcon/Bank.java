@@ -3,10 +3,19 @@ package es.upm.dit.fcon;
 import java.util.Scanner;
 import java.util.HashMap;
 
+import org.apache.zookeeper.CreateMode;
+import org.apache.zookeeper.WatchedEvent;
+import org.apache.zookeeper.KeeperException;
+import org.apache.zookeeper.Watcher;
+import org.apache.zookeeper.ZooDefs.Ids;
+import org.apache.zookeeper.ZooKeeper; 
+import org.apache.zookeeper.data.Stat;
+
 public class Bank {
 
 	private HashMap <Long, Client> clients; 
-	
+	private ZooKeeper zk;
+
 	public Bank () {
 		this.clients = new HashMap <Long, Client>();
 	}
@@ -48,6 +57,7 @@ public class Bank {
 	}
 	
 	private void sendCreateClient(Client client) {
+		zkOperation zk = new zkOperation();
 		String operation = "";
 		String type = "CREATE";
 		String account_number = client.getAccountNumber().toString();
