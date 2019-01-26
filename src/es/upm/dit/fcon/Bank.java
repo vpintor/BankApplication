@@ -15,9 +15,11 @@ public class Bank {
 
 	private HashMap <Long, Client> clients; 
 	private ZooKeeper zk;
-
-	public Bank () {
+	private int bankId; 
+	
+	public Bank (int id) {
 		this.clients = new HashMap <Long, Client>();
+		this.bankId = id; 
 	}
 	private boolean createClient(Client client) {
 		if (clients.containsKey(client.getAccountNumber())) {
@@ -57,13 +59,14 @@ public class Bank {
 	}
 	
 	private void sendCreateClient(Client client) {
-		zkOperation zk = new zkOperation();
 		String operation = "";
 		String type = "CREATE";
 		String account_number = client.getAccountNumber().toString();
 		String name = client.getName();
 		String balance = Integer.toString(client.getBalance());
 		operation = type + "," + account_number + "," + name + "," + balance;
+		zkOperation zk = new zkOperation(bankId, operation);
+
 		System.out.println(operation);
 	}
 	
@@ -124,84 +127,91 @@ public class Bank {
 	
 	public static void main(String[] args) {
 		// TODO Auto-generated method stub
-		
-		Bank bank = new Bank();
-		Scanner sc = new Scanner(System.in);
-		boolean salir = false;
-		Long accNumber   = (long) 0;
-		int balance = 0;
-		Client client   = null;
-		int menuKey = 0;
-		String operation = "";
-		Client c;
-		
-		while(!salir) {
+		if (args[0] != null) {
 			try {
-				System. out .println(">>> Enter operation client.: 1) Create. 2) Read. 3) Update. 4) Delete. 5) ReadAll. 6) Exit");
-				if (sc.hasNextInt()) {
-					menuKey = sc.nextInt();
-				} else {
-					sc.next();
-					System.out.println("The provised text provided is not an integer");
-				}
+				Bank bank = new Bank(Integer.parseInt(args[0]));
+				System.out.println("Se ha creado el banco "+args[0]);
+				Scanner sc = new Scanner(System.in);
+				boolean salir = false;
+				Long accNumber   = (long) 0;
+				int balance = 0;
+				Client client   = null;
+				int menuKey = 0;
+				String operation = "";
+				Client c;
 				
-				switch (menuKey) {
-				
-				case 1: // Create client
-					c = bank.readScanner(sc);
-					bank.sendCreateClient(c);
-					bank.createClient(c);
-					break;
-				case 2: // Read client
-					System. out .print(">>> Enter account number (int) = ");
-					if (sc.hasNextInt()) {
-						accNumber = (long) sc.nextInt();
-						client = bank.readClient(accNumber);
-						System.out.println(client);
-					} else {
-						System.out.println("The provised text provided is not an integer");
-						sc.next();
-					}
-					break;
-				case 3: // Update client
-					c = bank.readScanner(sc);
-					bank.sendUpdateClient(c);
-					bank.updateClient(c);
-
-					break;
-				case 4: // Delete client
-					System. out .print(">>> Enter account number (int) = ");
-					if (sc.hasNextInt()) {
-						accNumber = (long) sc.nextInt();
-						String name = bank.getClients().get(accNumber).getName();
-						bank.sendDeleteClient(accNumber);
-						boolean status = bank.deleteClient(accNumber);
-						if (status) {
-							System.out.println("El cliente " +name+ " se ha borrado correctamente.");
+				while(!salir) {
+					try {
+						System. out .println(">>> Enter operation client.: 1) Create. 2) Read. 3) Update. 4) Delete. 5) ReadAll. 6) Exit");
+						if (sc.hasNextInt()) {
+							menuKey = sc.nextInt();
+						} else {
+							sc.next();
+							System.out.println("The provised text provided is not an integer");
 						}
-						else {
-							System.out.println("Se ha producido un error. El cliente con id " + accNumber + " no existe.");
+						
+						switch (menuKey) {
+						
+						case 1: // Create client
+							c = bank.readScanner(sc);
+							bank.sendCreateClient(c);
+							bank.createClient(c);
+							break;
+						case 2: // Read client
+							System. out .print(">>> Enter account number (int) = ");
+							if (sc.hasNextInt()) {
+								accNumber = (long) sc.nextInt();
+								client = bank.readClient(accNumber);
+								System.out.println(client);
+							} else {
+								System.out.println("The provised text provided is not an integer");
+								sc.next();
+							}
+							break;
+						case 3: // Update client
+							c = bank.readScanner(sc);
+							bank.sendUpdateClient(c);
+							bank.updateClient(c);
+		
+							break;
+						case 4: // Delete client
+							System. out .print(">>> Enter account number (int) = ");
+							if (sc.hasNextInt()) {
+								accNumber = (long) sc.nextInt();
+								String name = bank.getClients().get(accNumber).getName();
+								bank.sendDeleteClient(accNumber);
+								boolean status = bank.deleteClient(accNumber);
+								if (status) {
+									System.out.println("El cliente " +name+ " se ha borrado correctamente.");
+								}
+								else {
+									System.out.println("Se ha producido un error. El cliente con id " + accNumber + " no existe.");
+								}
+							} else {
+								System.out.println("The provised text provided is not an integer");
+								sc.next();
+							}
+							break;
+						case 5:
+							String aux = bank.readAll();
+							System.out.println(aux);
+							break;
+						case 6:
+							salir = true;	
+							//bank.close();
+						default:
+							break;
 						}
-					} else {
-						System.out.println("The provised text provided is not an integer");
-						sc.next();
 					}
-					break;
-				case 5:
-					String aux = bank.readAll();
-					System.out.println(aux);
-					break;
-				case 6:
-					salir = true;	
-					//bank.close();
-				default:
-					break;
+					catch (Exception e) {
+						System.out.println("Exception at Main. Error read data");
+					}
 				}
+				sc.close();
 			}
 			catch (Exception e) {
-				System.out.println("Exception at Main. Error read data");
+				System.out.println("Exception in bankid parameter");
 			}
 		}
-		sc.close();
 	}
 }
