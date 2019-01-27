@@ -9,10 +9,11 @@ import org.apache.zookeeper.ZooKeeper;
 import org.apache.zookeeper.data.Stat;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.io.IOException;
 import java.util.Random;
-
+import java.nio.ByteBuffer;
 public class zkOperation {
 	
 	private static final int SESSION_TIMEOUT = 5000;
@@ -77,7 +78,7 @@ public class zkOperation {
 							Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
 					System.out.println("Crear el nodo global");
 					System.out.println(response);
-					zk.setData(rootState+aglobal, "0".getBytes(), -1);
+					zk.setData(rootState+aglobal, "0000000000".getBytes(), -1);
 
 				}
 				
@@ -98,13 +99,20 @@ public class zkOperation {
 				// Crear el nodo para la operacion pasada como parametro
 				myId = zk.create(rootOperations + aoperation, new byte[0], 
 						Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL_SEQUENTIAL);
-
+					
 				myId = myId.replace(rootOperations +"/", "");
-				Stat op = zk.exists(rootOperations+"/"+myId, watcherIdOperation);
-				
+				//Stat op = zk.exists(rootOperations+"/"+myId, watcherIdOperation);
+				byte [] datos = zk.getData(rootState+aglobal, null, globalNode);
 				String[] numOp = myId.split("-");
+				String datos_str = new String(datos);
+				System.out.println("El valor de datos str es "+datos_str);
+				int numero = Integer.parseInt(datos_str);
+				numero = numero +1;
+			    String glob = String.format("%10s", Integer.toString(numero))
+			    	    .replace(' ', '0');
+				
 				zk.setData(rootOperations+"/"+myId, operation.getBytes(), -1);
-				zk.setData(rootState+aglobal, numOp[1].getBytes(), -1);
+				zk.setData(rootState+aglobal, glob.getBytes(), -1);
 
 				// byte [] data = zk.getData(rootOperations+"/"+myId, watcherOperations, op);
 				// String data_string = new String(data);
@@ -144,6 +152,8 @@ public class zkOperation {
 				 System.out.println("El valor de event.getPath es "+event.getPath());
 				List<String> list = zk.getChildren(rootOperations,  watcherOperations); //this);
 				printListOperations(list);
+				
+				
 			} catch (Exception e) {
 				System.out.println("Exception: wacherOperations");
 			}
@@ -171,6 +181,7 @@ public class zkOperation {
 				System.out.println("        Update!!");
 				System.out.println("El watcher id operation da"+event.getPath());
 				System.out.println("Ahora si funciona");
+				
 
 				
 			} catch (Exception e) {

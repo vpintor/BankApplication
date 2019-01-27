@@ -10,14 +10,35 @@ import org.apache.zookeeper.Watcher;
 import org.apache.zookeeper.ZooDefs.Ids;
 import org.apache.zookeeper.ZooKeeper; 
 import org.apache.zookeeper.data.Stat;
+import org.apache.zookeeper.CreateMode;
+import org.apache.zookeeper.WatchedEvent;
+import org.apache.zookeeper.KeeperException;
+import org.apache.zookeeper.Watcher;
+import org.apache.zookeeper.ZooDefs.Ids;
+import org.apache.zookeeper.ZooKeeper; 
+import org.apache.zookeeper.data.Stat;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.io.IOException;
+import java.util.Random;
+import java.nio.ByteBuffer;
 
-public class Bank {
+public class bankFuncional {
 
 	private HashMap <Long, Client> clients; 
-	private ZooKeeper zk;
 	private int bankId; 
 	
-	public Bank (int id) {
+	private static final int SESSION_TIMEOUT = 5000;
+	private ZooKeeper zk;
+	private static String rootOperations = "/operations";
+	private static String rootState = "/state";
+	private static String aoperation = "/operation-";
+	private static String aserver = "/server-";
+	private static String aglobal = "/global";
+	
+	public bankFuncional (int id) {
 		this.clients = new HashMap <Long, Client>();
 		this.bankId = id; 
 	}
@@ -125,12 +146,50 @@ public class Bank {
 		return aux;
 	}
 	
+	private Watcher cWatcher = new Watcher() {
+		public void process (WatchedEvent e) {
+			System.out.println("------------------Watcher Session------------------\n");
+			System.out.println("Created session");
+			System.out.println(e.toString());
+			System.out.println("---------------------------------------------------\n");
+			notify();
+		}
+	};
+	
+	// Notified when the number of children in /member is updated
+	private Watcher  watcherOperations = new Watcher() {
+		public void process(WatchedEvent event) {
+			System.out.println("------------------Watcher Operations------------------\n");		
+			try {
+				System.out.println("        Update!!");
+				 System.out.println("El valor de event.getType es "+event.getType());
+				 System.out.println("El valor de event.getPath es "+event.getPath());
+				List<String> list = zk.getChildren(rootOperations,  watcherOperations); //this);
+				printListOperations(list);
+				
+				
+			} catch (Exception e) {
+				System.out.println("Exception: wacherOperations");
+			}
+			System.out.println("------------------------------------------------------\n");		
+		}
+	};
+	
+	private void printListOperations (List<String> list) {
+		System.out.println("\nRemaining # operations:" + list.size());
+		for (Iterator iterator = list.iterator(); iterator.hasNext();) {
+			String string = (String) iterator.next();
+			System.out.print(string + ", ");
+			
+		}
+		System.out.println();
+	}
 	public static void main(String[] args) {
 		// TODO Auto-generated method stub
 		if (args[0] != null) {
 			
 			try {
-				Bank bank = new Bank(Integer.parseInt(args[0]));
+				bankFuncional bank = new bankFuncional(Integer.parseInt(args[0]));
 				System.out.println("Se ha creado el banco "+args[0]);
 				Scanner sc = new Scanner(System.in);
 				boolean salir = false;
