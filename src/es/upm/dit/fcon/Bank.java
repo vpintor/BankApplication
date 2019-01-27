@@ -16,7 +16,7 @@ public class Bank {
 	private HashMap <Long, Client> clients; 
 	private ZooKeeper zk;
 	private int bankId; 
-	
+	private zkOperation zkOperation;
 	public Bank (int id) {
 		this.clients = new HashMap <Long, Client>();
 		this.bankId = id; 
@@ -58,14 +58,14 @@ public class Bank {
 		}	
 	}
 	
-	private void sendCreateClient(Client client) {
+	private void sendCreateClient(Client client, Bank bank) {
 		String operation = "";
 		String type = "CREATE";
 		String account_number = client.getAccountNumber().toString();
 		String name = client.getName();
 		String balance = Integer.toString(client.getBalance());
 		operation = type + "," + account_number + "," + name + "," + balance;
-		zkOperation zk = new zkOperation(bankId, operation);
+		bank.zkOperation.createOperation(operation, bank);
 
 		System.out.println(operation);
 	}
@@ -132,6 +132,8 @@ public class Bank {
 			try {
 				Bank bank = new Bank(Integer.parseInt(args[0]));
 				System.out.println("Se ha creado el banco "+args[0]);
+				bank.zkOperation= new zkOperation(bank.bankId);
+
 				Scanner sc = new Scanner(System.in);
 				boolean salir = false;
 				Long accNumber   = (long) 0;
@@ -155,7 +157,7 @@ public class Bank {
 						
 						case 1: // Create client
 							c = bank.readScanner(sc);
-							bank.sendCreateClient(c);
+							bank.sendCreateClient(c,bank);
 							bank.createClient(c);
 							break;
 						case 2: // Read client

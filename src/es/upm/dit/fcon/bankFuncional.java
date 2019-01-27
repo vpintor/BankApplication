@@ -37,12 +37,19 @@ public class bankFuncional {
 	private static String aoperation = "/operation-";
 	private static String aserver = "/server-";
 	private static String aglobal = "/global";
+	private String myId;
 	
 	public bankFuncional (int id) {
 		this.clients = new HashMap <Long, Client>();
 		this.bankId = id; 
+		
 	}
-	private boolean createClient(Client client) {
+	
+	public int getBankId() {
+		return this.bankId;
+	}
+	
+	public boolean createClient(Client client) {
 		if (clients.containsKey(client.getAccountNumber())) {
 			return false;
 		} else {
@@ -51,7 +58,7 @@ public class bankFuncional {
 		}
 	}
 	
-	private boolean deleteClient(Long id) {
+	public boolean deleteClient(Long id) {
 		if (clients.containsKey(id)) {
 			clients.remove(id);
 			return true;
@@ -59,10 +66,10 @@ public class bankFuncional {
 			return false;
 		}	
 	}
-	private HashMap<Long, Client> getClients() {
+	public HashMap<Long, Client> getClients() {
 		return clients;
 	}
-	private boolean updateClient(Client client) {
+	public boolean updateClient(Client client) {
 		if (clients.containsKey(client.getAccountNumber())) {
 			clients.put(client.getAccountNumber(), client);
 			return true;
@@ -71,7 +78,7 @@ public class bankFuncional {
 		}	
 	}
 	
-	private Client readClient(Long id) {
+	public Client readClient(Long id) {
 		if (clients.containsKey(id)) {
 			return clients.get(id);
 		} else {
@@ -79,19 +86,19 @@ public class bankFuncional {
 		}	
 	}
 	
-	private void sendCreateClient(Client client) {
+	public void sendCreateClient(Client client) {
 		String operation = "";
 		String type = "CREATE";
 		String account_number = client.getAccountNumber().toString();
 		String name = client.getName();
 		String balance = Integer.toString(client.getBalance());
 		operation = type + "," + account_number + "," + name + "," + balance;
-		zkOperation zk = new zkOperation(bankId, operation);
+		this.createOperation(operation);
 
 		System.out.println(operation);
 	}
 	
-	private void sendUpdateClient(Client client) {
+	public void sendUpdateClient(Client client) {
 		String operation = "";
 		String type = "UPDATE";
 		String account_number = client.getAccountNumber().toString();
@@ -101,7 +108,7 @@ public class bankFuncional {
 		System.out.println(operation);
 	}
 	
-	private void sendDeleteClient(Long id) {
+	public void sendDeleteClient(Long id) {
 		String operation = "";
 		String type = "DELETE";
 		String account_number = id.toString();
@@ -159,14 +166,24 @@ public class bankFuncional {
 	// Notified when the number of children in /member is updated
 	private Watcher  watcherOperations = new Watcher() {
 		public void process(WatchedEvent event) {
-			System.out.println("------------------Watcher Operations------------------\n");		
+			System.out.println("\n------------------Watcher Operations------------------\n");		
 			try {
 				System.out.println("        Update!!");
-				 System.out.println("El valor de event.getType es "+event.getType());
-				 System.out.println("El valor de event.getPath es "+event.getPath());
-				List<String> list = zk.getChildren(rootOperations,  watcherOperations); //this);
+				 System.out.println("Se ha producido un evento de tipo "+event.getType());
+				 System.out.println("El valor de event.getPath del parent es "+event.getPath());
+				List<String> list = zk.getChildren(rootOperations,  null); //this);
 				printListOperations(list);
 				
+				Stat globalNode = zk.exists(rootState+aglobal, null);
+				String global_string = new String(zk.getData(rootState+aglobal, null, globalNode));
+	
+				Stat nodo_operacion = zk.exists(rootOperations+aoperation+global_string, null);
+				if(nodo_operacion != null) {
+					System.out.println("\nSe ha creado un nuevo nodo operación:  " + rootOperations+aoperation+global_string);
+					byte [] datos = zk.getData(rootOperations+aoperation+global_string, null, nodo_operacion);
+					System.out.println("La operación es la siguiente: "+new String(datos));
+					execOperation(new String(datos));
+				}
 				
 			} catch (Exception e) {
 				System.out.println("Exception: wacherOperations");
@@ -175,103 +192,192 @@ public class bankFuncional {
 		}
 	};
 	
+//	private Watcher  watcherIdOperation = new Watcher() {
+//		public void process(WatchedEvent event) {
+//			System.out.println("------------------Watcher Id Operation------------------\n");		
+//			try {
+//				System.out.println("        Update!!");
+//				System.out.println("El watcher id operation da"+event.getPath());
+//				System.out.println("Ahora si funciona");
+//				
+////				Stat globalNode = zk.exists(rootState+aglobal, null);
+////				String global_string = new String(zk.getData(rootState+aglobal, null, globalNode));
+////				Stat nodo_operacion = zk.exists(rootOperations+aoperation+global_string, watcherIdOperation);
+////				byte [] datos = zk.getData(rootOperations+aoperation+global_string, watcherIdOperation, nodo_operacion);
+////				System.out.println(new String(datos));
+//				
+//			} catch (Exception e) {
+//				System.out.println("Exception: wacherIdOperation");
+//			}
+//			System.out.println("-------------------------------------------------\n");		
+//
+//		}
+//	};
+	
 	private void printListOperations (List<String> list) {
-		System.out.println("\nRemaining # operations:" + list.size());
+		System.out.println("\nNumero total de operaciones: " + list.size());
+		System.out.println("Lista de operaciones");
 		for (Iterator iterator = list.iterator(); iterator.hasNext();) {
 			String string = (String) iterator.next();
-			System.out.print(string + ", ");
+			System.out.println(string);
 			
 		}
 		System.out.println();
 	}
-	public static void main(String[] args) {
-		// TODO Auto-generated method stub
-		if (args[0] != null) {
+	
+	public void initZoo(int serverId) {
+		try {
 			
-			try {
-				bankFuncional bank = new bankFuncional(Integer.parseInt(args[0]));
-				System.out.println("Se ha creado el banco "+args[0]);
-				Scanner sc = new Scanner(System.in);
-				boolean salir = false;
-				Long accNumber   = (long) 0;
-				int balance = 0;
-				Client client   = null;
-				int menuKey = 0;
-				String operation = "";
-				Client c;
-				
-				while(!salir) {
-					try {
-						System. out .println(">>> Enter operation client.: 1) Create. 2) Read. 3) Update. 4) Delete. 5) ReadAll. 6) Exit");
-						if (sc.hasNextInt()) {
-							menuKey = sc.nextInt();
-						} else {
-							sc.next();
-							System.out.println("The provised text provided is not an integer");
-						}
-						
-						switch (menuKey) {
-						
-						case 1: // Create client
-							c = bank.readScanner(sc);
-							bank.sendCreateClient(c);
-							bank.createClient(c);
-							break;
-						case 2: // Read client
-							System. out .print(">>> Enter account number (int) = ");
-							if (sc.hasNextInt()) {
-								accNumber = (long) sc.nextInt();
-								client = bank.readClient(accNumber);
-								System.out.println(client);
-							} else {
-								System.out.println("The provised text provided is not an integer");
-								sc.next();
-							}
-							break;
-						case 3: // Update client
-							c = bank.readScanner(sc);
-							bank.sendUpdateClient(c);
-							bank.updateClient(c);
-		
-							break;
-						case 4: // Delete client
-							System. out .print(">>> Enter account number (int) = ");
-							if (sc.hasNextInt()) {
-								accNumber = (long) sc.nextInt();
-								String name = bank.getClients().get(accNumber).getName();
-								bank.sendDeleteClient(accNumber);
-								boolean status = bank.deleteClient(accNumber);
-								if (status) {
-									System.out.println("El cliente " +name+ " se ha borrado correctamente.");
-								}
-								else {
-									System.out.println("Se ha producido un error. El cliente con id " + accNumber + " no existe.");
-								}
-							} else {
-								System.out.println("The provised text provided is not an integer");
-								sc.next();
-							}
-							break;
-						case 5:
-							String aux = bank.readAll();
-							System.out.println(aux);
-							break;
-						case 6:
-							salir = true;	
-							//bank.close();
-						default:
-							break;
-						}
-					}
-					catch (Exception e) {
-						System.out.println("Exception at Main. Error read data");
-					}
+			if (zk == null) {
+				zk = new ZooKeeper("0.0.0.0:2181", SESSION_TIMEOUT, cWatcher);
+				try {
+					// Wait for creating the session. Use the object lock
+					wait();
+					//zk.exists("/",false);
+				} catch (Exception e) {
+					// TODO: handle exception
 				}
-				sc.close();
 			}
-			catch (Exception e) {
-				System.out.println("Exception in bankid parameter");
+		} catch (Exception e) {
+			System.out.println("Error");
+		}
+		
+
+		if (zk != null) {
+			// Create a folder for members and include this process/server
+			try {
+				// Create a folder, if it is not created
+				String response = new String();
+				Stat s = zk.exists(rootOperations, watcherOperations); //this);
+				Stat state = zk.exists(rootState, watcherOperations);
+				
+				if (s == null) {
+					// Crear el nodo raiz de operations
+					response = zk.create(rootOperations, new byte[0], 
+							Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+					System.out.println("Crear el nodo raiz operations");
+					System.out.println(response);
+				}
+				if (state == null) {
+					// Crear el nodo raiz state
+					response = zk.create(rootState, new byte[0], 
+							Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+					System.out.println("Crear el nodo raiz state");
+					System.out.println(response);
+				}
+				
+				Stat globalNode = zk.exists(rootState+aglobal, null);
+				
+				if (globalNode == null) {
+					// Crear nodo para el estado global
+					response = zk.create(rootState+aglobal, new byte[0], 
+							Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+					System.out.println("Crear el nodo global");
+					System.out.println(response);
+					zk.setData(rootState+aglobal, "0000000000".getBytes(), -1);
+
+				}
+				
+				String stringServer = aserver+serverId;
+				Stat server = zk.exists(rootState+stringServer, null);
+				
+				if (server == null) {
+					// Crear nodo para el servidor pasado como id
+					response = zk.create(rootState+stringServer, new byte[0], 
+							Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+					System.out.println("Crear el nodo server x");
+					System.out.println(response);
+					zk.setData(rootState+stringServer, "-1".getBytes(), -1);
+
+				}
+				String global_string = new String(zk.getData(rootState+aglobal, null, globalNode));
+	
+				Stat nodo_operacion = zk.exists(rootOperations+aoperation+global_string, watcherOperations);
+				
+			} catch (KeeperException e) {
+				System.out.println("The session with Zookeeper failes. Closing");
+				return;
+			} catch (InterruptedException e) {
+				System.out.println("InterruptedException raised");
 			}
+
 		}
 	}
+	
+	public void createOperation(String operation) {
+		try {
+			Stat globalNode = zk.exists(rootState+aglobal, null);
+			String global_string = new String(zk.getData(rootState+aglobal, null, globalNode));
+			Stat nodo_operacion = zk.exists(rootOperations+aoperation+global_string, null);
+			if(nodo_operacion == null) {
+				// Crear el nodo para la operacion pasada como parametro
+				myId = zk.create(rootOperations + aoperation, new byte[0], 
+						Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL_SEQUENTIAL);
+					
+				myId = myId.replace(rootOperations +"/", "");
+				//Stat op = zk.exists(rootOperations+"/"+myId, watcherIdOperation);
+				byte [] datos = zk.getData(rootState+aglobal, null, globalNode);
+				String[] numOp = myId.split("-");
+				String datos_str = new String(datos);
+				System.out.println("El valor de datos str es "+datos_str);
+				int numero = Integer.parseInt(datos_str);
+				numero = numero +1;
+			    String glob = String.format("%10s", Integer.toString(numero))
+			    	    .replace(' ', '0');
+				
+				zk.setData(rootOperations+"/"+myId, operation.getBytes(), -1);
+				zk.setData(rootState+aglobal, glob.getBytes(), -1);
+	
+				Stat s = zk.exists(rootOperations, watcherOperations); //this);
+	
+				List<String> list = zk.getChildren(rootOperations, null, s); //this, s);
+				System.out.println("Created znode operation id:"+ myId );
+				printListOperations(list);
+			}
+		} catch (KeeperException e) {
+			System.out.println("The operation creaation with Zookeeper failes. Closing");
+			return;
+		} catch (InterruptedException e) {
+			System.out.println("InterruptedException raised");
+		}
+	}
+	
+	private void execOperation (String operation) {
+		String[] opSplit = operation.split(",");
+		long account_number;
+		String name;
+		int balance;
+		Client client;
+		switch (opSplit[0]) {
+		case "CREATE": 
+			account_number = Long.parseLong(opSplit[1]);
+			name = opSplit[2];
+			balance = Integer.parseInt(opSplit[3]);
+			client = new Client(account_number, name, balance);
+			this.createClient(client);
+			break;
+		case "DELETE":
+			account_number = Long.parseLong(opSplit[1]);
+			String name_client = this.getClients().get(account_number).getName();
+			boolean status = this.deleteClient(account_number);
+			if (status) {
+				System.out.println("El cliente " +name_client+ " se ha borrado correctamente.");
+			}
+			else {
+				System.out.println("Se ha producido un error. El cliente con id " + account_number + " no existe.");
+			}
+			break;
+		case "UPDATE":
+			account_number = Long.parseLong(opSplit[1]);
+			name = opSplit[2];
+			balance = Integer.parseInt(opSplit[3]);
+			client = new Client(account_number, name, balance);
+			this.updateClient(client);
+			break;
+		default:
+			break;
+		}
+	}
+	
+	
 }

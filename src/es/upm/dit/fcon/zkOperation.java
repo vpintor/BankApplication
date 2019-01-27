@@ -28,8 +28,7 @@ public class zkOperation {
 
 	private String myId;
 	
-	public zkOperation(int serverId, String operation) {
-		
+	public zkOperation(int serverId) {
 		try {
 			
 			if (zk == null) {
@@ -94,8 +93,23 @@ public class zkOperation {
 					zk.setData(rootState+stringServer, "-1".getBytes(), -1);
 
 				}
-				String global_string = new String(zk.getData(rootState+aglobal, null, globalNode));
-				Stat nodo_operacion = zk.exists(rootOperations+aoperation+global_string, watcherIdOperation);
+				
+			} catch (KeeperException e) {
+				System.out.println("The session with Zookeeper failes. Closing");
+				return;
+			} catch (InterruptedException e) {
+				System.out.println("InterruptedException raised");
+			}
+
+		}
+	}
+	
+	public void createOperation(String operation) {
+		try {
+			Stat globalNode = zk.exists(rootState+aglobal, null);
+			String global_string = new String(zk.getData(rootState+aglobal, null, globalNode));
+			Stat nodo_operacion = zk.exists(rootOperations+aoperation+global_string, watcherIdOperation);
+			if(nodo_operacion == null) {
 				// Crear el nodo para la operacion pasada como parametro
 				myId = zk.create(rootOperations + aoperation, new byte[0], 
 						Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL_SEQUENTIAL);
@@ -113,25 +127,20 @@ public class zkOperation {
 				
 				zk.setData(rootOperations+"/"+myId, operation.getBytes(), -1);
 				zk.setData(rootState+aglobal, glob.getBytes(), -1);
-
-				// byte [] data = zk.getData(rootOperations+"/"+myId, watcherOperations, op);
-				// String data_string = new String(data);
-				
-
-				//System.out.println("El valor del nodo "+myId+" es " +data_string);
+	
+				Stat s = zk.exists(rootOperations, watcherOperations); //this);
+	
 				List<String> list = zk.getChildren(rootOperations, watcherOperations, s); //this, s);
 				System.out.println("Created znode operation id:"+ myId );
 				printListOperations(list);
-			} catch (KeeperException e) {
-				System.out.println("The session with Zookeeper failes. Closing");
-				return;
-			} catch (InterruptedException e) {
-				System.out.println("InterruptedException raised");
 			}
-
+		} catch (KeeperException e) {
+			System.out.println("The operation creaation with Zookeeper failes. Closing");
+			return;
+		} catch (InterruptedException e) {
+			System.out.println("InterruptedException raised");
 		}
 	}
-	
 	private Watcher cWatcher = new Watcher() {
 		public void process (WatchedEvent e) {
 			System.out.println("------------------Watcher Session------------------\n");
@@ -153,6 +162,15 @@ public class zkOperation {
 				List<String> list = zk.getChildren(rootOperations,  watcherOperations); //this);
 				printListOperations(list);
 				
+				Stat globalNode = zk.exists(rootState+aglobal, null);
+				String global_string = new String(zk.getData(rootState+aglobal, null, globalNode));
+	
+				Stat nodo_operacion = zk.exists(rootOperations+aoperation+global_string, null);
+				if(nodo_operacion != null) {
+					System.out.println("Ruta del nuevo nodo operación" + rootOperations+aoperation+global_string);
+					byte [] datos = zk.getData(rootOperations+aoperation+global_string, null, nodo_operacion);
+					System.out.println(new String(datos));
+				}
 				
 			} catch (Exception e) {
 				System.out.println("Exception: wacherOperations");
@@ -182,7 +200,11 @@ public class zkOperation {
 				System.out.println("El watcher id operation da"+event.getPath());
 				System.out.println("Ahora si funciona");
 				
-
+//				Stat globalNode = zk.exists(rootState+aglobal, null);
+//				String global_string = new String(zk.getData(rootState+aglobal, null, globalNode));
+//				Stat nodo_operacion = zk.exists(rootOperations+aoperation+global_string, watcherIdOperation);
+//				byte [] datos = zk.getData(rootOperations+aoperation+global_string, watcherIdOperation, nodo_operacion);
+//				System.out.println(new String(datos));
 				
 			} catch (Exception e) {
 				System.out.println("Exception: wacherIdOperation");
