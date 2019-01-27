@@ -95,7 +95,6 @@ public class bankFuncional {
 		operation = type + "," + account_number + "," + name + "," + balance;
 		this.createOperation(operation);
 
-		System.out.println(operation);
 	}
 	
 	public void sendUpdateClient(Client client) {
@@ -105,7 +104,7 @@ public class bankFuncional {
 		String name = client.getName();
 		String balance = Integer.toString(client.getBalance());
 		operation = type + "," + account_number + "," + name + "," + balance;
-		System.out.println(operation);
+		this.createOperation(operation);
 	}
 	
 	public void sendDeleteClient(Long id) {
@@ -113,7 +112,7 @@ public class bankFuncional {
 		String type = "DELETE";
 		String account_number = id.toString();
 		operation = type + "," + account_number;
-		System.out.println(operation);
+		this.createOperation(operation);
 	}
 	
 	public Client readScanner(Scanner sc) {
@@ -171,18 +170,20 @@ public class bankFuncional {
 				System.out.println("        Update!!");
 				 System.out.println("Se ha producido un evento de tipo "+event.getType());
 				 System.out.println("El valor de event.getPath del parent es "+event.getPath());
-				List<String> list = zk.getChildren(rootOperations,  null); //this);
+				List<String> list = zk.getChildren(rootOperations,  watcherOperations); //this);
 				printListOperations(list);
 				
 				Stat globalNode = zk.exists(rootState+aglobal, null);
 				String global_string = new String(zk.getData(rootState+aglobal, null, globalNode));
 	
-				Stat nodo_operacion = zk.exists(rootOperations+aoperation+global_string, null);
+				Stat nodo_operacion = zk.exists(rootOperations+aoperation+global_string,watcherOperations);
 				if(nodo_operacion != null) {
 					System.out.println("\nSe ha creado un nuevo nodo operación:  " + rootOperations+aoperation+global_string);
 					byte [] datos = zk.getData(rootOperations+aoperation+global_string, null, nodo_operacion);
 					System.out.println("La operación es la siguiente: "+new String(datos));
 					execOperation(new String(datos));
+					System.out.println("Operación realizada en la base de datos");
+
 				}
 				
 			} catch (Exception e) {
@@ -313,29 +314,31 @@ public class bankFuncional {
 				// Crear el nodo para la operacion pasada como parametro
 				myId = zk.create(rootOperations + aoperation, new byte[0], 
 						Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL_SEQUENTIAL);
-					
+
 				myId = myId.replace(rootOperations +"/", "");
-				//Stat op = zk.exists(rootOperations+"/"+myId, watcherIdOperation);
+				zk.setData(rootOperations+"/"+myId, operation.getBytes(), -1);
+				
+				
 				byte [] datos = zk.getData(rootState+aglobal, null, globalNode);
 				String[] numOp = myId.split("-");
 				String datos_str = new String(datos);
-				System.out.println("El valor de datos str es "+datos_str);
+				//System.out.println("El valor de datos str es "+datos_str);
 				int numero = Integer.parseInt(datos_str);
 				numero = numero +1;
 			    String glob = String.format("%10s", Integer.toString(numero))
 			    	    .replace(' ', '0');
 				
-				zk.setData(rootOperations+"/"+myId, operation.getBytes(), -1);
 				zk.setData(rootState+aglobal, glob.getBytes(), -1);
-	
-				Stat s = zk.exists(rootOperations, watcherOperations); //this);
-	
+
+				Stat s = zk.exists(rootOperations, null); //this);
+				Stat opa = zk.exists(rootOperations+"/"+myId, watcherOperations);
+
 				List<String> list = zk.getChildren(rootOperations, null, s); //this, s);
 				System.out.println("Created znode operation id:"+ myId );
 				printListOperations(list);
 			}
 		} catch (KeeperException e) {
-			System.out.println("The operation creaation with Zookeeper failes. Closing");
+			System.out.println("The operation creation with Zookeeper failes. Closing");
 			return;
 		} catch (InterruptedException e) {
 			System.out.println("InterruptedException raised");
