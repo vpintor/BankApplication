@@ -29,7 +29,7 @@ public class bankFuncional {
 
 	private HashMap <Long, Client> clients; 
 	private int bankId; 
-	
+	private int last_operation_db;
 	private static final int SESSION_TIMEOUT = 5000;
 	private ZooKeeper zk;
 	private static String rootOperations = "/operations";
@@ -41,7 +41,8 @@ public class bankFuncional {
 	
 	public bankFuncional (int id) {
 		this.clients = new HashMap <Long, Client>();
-		this.bankId = id; 
+		this.bankId = id;
+		this.last_operation_db = -1;
 		
 	}
 	
@@ -181,8 +182,13 @@ public class bankFuncional {
 					System.out.println("\nSe ha creado un nuevo nodo operación:  " + rootOperations+aoperation+global_string);
 					byte [] datos = zk.getData(rootOperations+aoperation+global_string, null, nodo_operacion);
 					System.out.println("La operación es la siguiente: "+new String(datos));
-					execOperation(new String(datos));
-					System.out.println("Operación realizada en la base de datos");
+					
+					
+					if (atenderWatcher(globalNode)) {
+						actualizarServidor(globalNode);
+						
+					}
+										
 
 				}
 				
@@ -307,35 +313,46 @@ public class bankFuncional {
 	
 	public void createOperation(String operation) {
 		try {
+			
 			Stat globalNode = zk.exists(rootState+aglobal, null);
-			String global_string = new String(zk.getData(rootState+aglobal, null, globalNode));
-			Stat nodo_operacion = zk.exists(rootOperations+aoperation+global_string, null);
-			if(nodo_operacion == null) {
-				// Crear el nodo para la operacion pasada como parametro
-				myId = zk.create(rootOperations + aoperation, new byte[0], 
-						Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL_SEQUENTIAL);
+			if (atenderPeticion(globalNode)) {
+				String global_string = new String(zk.getData(rootState+aglobal, null, globalNode));
+				Stat nodo_operacion = zk.exists(rootOperations+aoperation+global_string, null);
+				if(nodo_operacion == null) {
+					// Crear el nodo para la operacion pasada como parametro
+					myId = zk.create(rootOperations + aoperation, new byte[0], 
+							Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL_SEQUENTIAL);
+	
+					myId = myId.replace(rootOperations +"/", "");
+					zk.setData(rootOperations+"/"+myId, operation.getBytes(), -1);
+					
+					
+					byte [] datos = zk.getData(rootState+aglobal, null, globalNode);
+					String[] numOp = myId.split("-");
+					String datos_str = new String(datos);
+					//System.out.println("El valor de datos str es "+datos_str);
+					int numero = Integer.parseInt(datos_str);
+					numero = numero +1;
+				    String glob = String.format("%10s", Integer.toString(numero))
+				    	    .replace(' ', '0');
+					
+				    actualizarGlobal(glob);
+				    //zk.setData(rootState+aglobal, glob.getBytes(), -1);
+					wait();
 
-				myId = myId.replace(rootOperations +"/", "");
-				zk.setData(rootOperations+"/"+myId, operation.getBytes(), -1);
-				
-				
-				byte [] datos = zk.getData(rootState+aglobal, null, globalNode);
-				String[] numOp = myId.split("-");
-				String datos_str = new String(datos);
-				//System.out.println("El valor de datos str es "+datos_str);
-				int numero = Integer.parseInt(datos_str);
-				numero = numero +1;
-			    String glob = String.format("%10s", Integer.toString(numero))
-			    	    .replace(' ', '0');
-				
-				zk.setData(rootState+aglobal, glob.getBytes(), -1);
+				    Stat s = zk.exists(rootOperations, null); //this);
+					Stat opa = zk.exists(rootOperations+"/"+myId, watcherOperations);
+	
+					List<String> list = zk.getChildren(rootOperations, null, s); //this, s);
+					System.out.println("Created znode operation id:"+ myId );
+					printListOperations(list);
+				}
+			}
+			else {
+				System.out.println("El servidor no puede atender la petición ahora mismo, está desactualizado");
+				System.out.println("Va a proceder a actualizarse. Espere un momento");
+				actualizarServidor(globalNode);
 
-				Stat s = zk.exists(rootOperations, null); //this);
-				Stat opa = zk.exists(rootOperations+"/"+myId, watcherOperations);
-
-				List<String> list = zk.getChildren(rootOperations, null, s); //this, s);
-				System.out.println("Created znode operation id:"+ myId );
-				printListOperations(list);
 			}
 		} catch (KeeperException e) {
 			System.out.println("The operation creation with Zookeeper failes. Closing");
@@ -382,5 +399,163 @@ public class bankFuncional {
 		}
 	}
 	
+	private boolean atenderWatcher(Stat globalNode) {
+		try {
+			
+			byte [] datos_global = zk.getData(rootState+aglobal, null, globalNode);
+			String datos_str_glob = new String(datos_global);
+			//System.out.println("El valor de datos str es "+datos_str);
+			int global = Integer.parseInt(datos_str_glob);
+			
+			if (last_operation_db <= global -1) {
+				return true; 
+			}
+		} catch (KeeperException e) {
+			System.out.println("The operation creation with Zookeeper failes. Closing");
+			return false;
+		} catch (InterruptedException e) {
+			System.out.println("InterruptedException raised");
+			return false;
+		}
+		return false;
+	}
+	
+	private boolean atenderPeticion(Stat globalNode) {
+		try {
+			
+			byte [] datos_global = zk.getData(rootState+aglobal, null, globalNode);
+			String datos_str_glob = new String(datos_global);
+			//System.out.println("El valor de datos str es "+datos_str);
+			int global = Integer.parseInt(datos_str_glob);
+			
+			if (last_operation_db == global -1) {
+				return true; 
+			}
+		} catch (KeeperException e) {
+			System.out.println("The operation creation with Zookeeper failes. Closing");
+			return false;
+		} catch (InterruptedException e) {
+			System.out.println("InterruptedException raised");
+			return false;
+		}
+		return false;
+	}
+	
+	private void actualizarServidor (Stat globalNode) {
+		try {		
+			byte [] datos_global = zk.getData(rootState+aglobal, null, globalNode);
+			String datos_str_glob = new String(datos_global);
+			//System.out.println("El valor de datos str es "+datos_str);
+			int global = Integer.parseInt(datos_str_glob);
+			System.out.println("El valor de last_operation_db es "+last_operation_db);
+			System.out.println("El valor de global es "+global);
+			if (last_operation_db <= global -1) {
+				System.out.println("Entra en el if de actualizarServidor");
+
+				for(int i=last_operation_db+1; i<global; i++) {
+				    String i_formatted = String.format("%10s", Integer.toString(i)).replace(' ', '0');
+					System.out.println("Valor de i es "+i);
+					System.out.println("Valor de i_formatted es "+i_formatted);
+
+					Stat nodo_operacion = zk.exists(rootOperations+aoperation+i_formatted,null);
+					byte [] datos_op = zk.getData(rootOperations+aoperation+i_formatted, null, nodo_operacion);
+					String datos_str = new String(datos_op);
+					System.out.println("Valor de datos_str es "+datos_str);
+
+					execOperation(datos_str);
+					System.out.println("Operación "+ datos_str+" realizada en la base de datos");
+
+					last_operation_db++;
+					
+					//TODO INCREMENTAR VALOR SX (COMPROBAR CON WHILE)
+					sincronizarStateSx();
+					
+				}
+			}
+			else {
+				return;
+			}
+		} catch (KeeperException e) {
+			System.out.println("Error actualizando servidor. KeeperException");
+		} catch (InterruptedException e) {
+			System.out.println("Error actualizando servidor. InterruptedException raised");
+		}
+	}
+	
+	private void sincronizarStateSx() {
+		try {
+			String Server = aserver+bankId;
+			Stat server = zk.exists(rootState+Server, null);
+			String server_string = new String(zk.getData(rootState+Server, null, server));
+			int state_sx = Integer.parseInt(server_string);
+			while (state_sx != last_operation_db) {
+				
+			    String sx_update = String.format("%10s", Integer.toString(last_operation_db))
+			    	    .replace(' ', '0');
+				zk.setData(rootState+Server, sx_update.getBytes(), -1);
+				
+				server_string = new String(zk.getData(rootState+Server, null, server));
+				state_sx = Integer.parseInt(server_string);
+			}
+			
+			
+		} catch (KeeperException e) {
+			System.out.println("Error sincronizarStateSx. KeeperException");
+		} catch (InterruptedException e) {
+			System.out.println("Error sincronizarStateSx. InterruptedException raised");
+		}
+	}
+	
+	private void actualizarGlobal(String glob) {
+		try {
+			Stat global = zk.exists(rootState+aglobal, null);
+			String global_string = new String(zk.getData(rootState+aglobal, null, global));
+			System.out.println("Entra en actualizar global");
+			System.out.println("El valor de global_string es "+global_string);
+			System.out.println("El valor de glob  es "+glob);
+
+//			while (!global_string.equals(glob)) {
+//				zk.setData(rootState+aglobal, glob.getBytes(), -1);
+//				System.out.println("Entra en el while de actualizar global y cambia el valor a "+glob);
+//
+//				global_string = new String(zk.getData(rootState+aglobal, null, global));
+//			}
+			do {
+				zk.setData(rootState+aglobal, glob.getBytes(), -1);
+				System.out.println("Entra en el while de actualizar global y cambia el valor a "+glob);
+
+				global_string = new String(zk.getData(rootState+aglobal, null, global));
+	        } while (!global_string.equals(glob));
+			
+		} catch (KeeperException e) {
+			System.out.println("Error actualizando global. KeeperException");
+		} catch (InterruptedException e) {
+			System.out.println("Error actualizando global. InterruptedException raised");
+		}
+	}
+	
+	private void limpiarNodos() {
+		try {
+			List<String> list_op = zk.getChildren(rootOperations,  null); //this);
+			int num_op = list_op.size();
+			
+			List<String> list_states = zk.getChildren(rootState,  null); //this);
+			int num_sx = list_states.size()-1;
+			
+			int[] states; 
+			
+			for(int i=0; i<num_sx; i++) {
+				
+			}
+			Stat globalNode = zk.exists(rootState+aglobal, null);
+			String global_string = new String(zk.getData(rootState+aglobal, null, globalNode));
+			
+			
+		} catch (KeeperException e) {
+			System.out.println("Error actualizando global. KeeperException");
+		} catch (InterruptedException e) {
+			System.out.println("Error actualizando global. InterruptedException raised");
+		}
+	}
 	
 }
