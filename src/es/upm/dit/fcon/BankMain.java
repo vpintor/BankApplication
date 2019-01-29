@@ -5,7 +5,6 @@ import java.util.Scanner;
 public class BankMain {
 	private bankFuncional bank; 
 	public static void main(String[] args) {
-		// TODO Auto-generated method stub
 		
 		if (args[0] != null) {
 			

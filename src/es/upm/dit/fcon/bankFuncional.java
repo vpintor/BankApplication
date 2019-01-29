@@ -81,11 +81,33 @@ public class bankFuncional {
 	}
 	
 	public Client readClient(Long id) {
-		if (clients.containsKey(id)) {
-			return clients.get(id);
-		} else {
+		try {
+			Stat globalNode = zk.exists(rootState+aglobal, null);
+			
+			
+			if (atenderPeticion(globalNode)) {
+				if (clients.containsKey(id)) {
+					return clients.get(id);
+				} else {
+					return null;
+				}
+			}
+			else {
+				System.out.println("El servidor no puede atender la petición ahora mismo, está desactualizado");
+				System.out.println("Va a proceder a actualizarse. Espere un momento");
+				actualizarServidor(globalNode);
+				return null; 
+
+			}
+		} catch (KeeperException e) {
+			System.out.println("The operation read failes. KeeperException");
 			return null;
-		}	
+		} catch (InterruptedException e) {
+			System.out.println("The operation read failes. InterruptedException");
+			return null; 
+		}
+		
+		
 	}
 	
 	public void sendCreateClient(Client client) {
@@ -249,7 +271,6 @@ public class bankFuncional {
 					wait();
 					//zk.exists("/",false);
 				} catch (Exception e) {
-					// TODO: handle exception
 				}
 			}
 		} catch (Exception e) {
@@ -475,7 +496,6 @@ public class bankFuncional {
 
 					last_operation_db++;
 					
-					//TODO INCREMENTAR VALOR SX (COMPROBAR CON WHILE)
 					sincronizarStateSx();
 					
 				}
