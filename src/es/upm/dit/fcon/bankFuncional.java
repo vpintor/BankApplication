@@ -19,6 +19,7 @@ import org.apache.zookeeper.ZooKeeper;
 import org.apache.zookeeper.data.Stat;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Collections;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.io.IOException;
@@ -168,28 +169,34 @@ public class bankFuncional {
 		public void process(WatchedEvent event) {
 			System.out.println("\n------------------Watcher Operations------------------\n");		
 			try {
-				System.out.println("        Update!!");
-				 System.out.println("Se ha producido un evento de tipo "+event.getType());
-				 System.out.println("El valor de event.getPath del parent es "+event.getPath());
-				List<String> list = zk.getChildren(rootOperations,  watcherOperations); //this);
-				printListOperations(list);
-				
-				Stat globalNode = zk.exists(rootState+aglobal, null);
-				String global_string = new String(zk.getData(rootState+aglobal, null, globalNode));
-	
-				Stat nodo_operacion = zk.exists(rootOperations+aoperation+global_string,watcherOperations);
-				if(nodo_operacion != null) {
-					System.out.println("\nSe ha creado un nuevo nodo operación:  " + rootOperations+aoperation+global_string);
-					byte [] datos = zk.getData(rootOperations+aoperation+global_string, null, nodo_operacion);
-					System.out.println("La operación es la siguiente: "+new String(datos));
-					
-					
-					if (atenderWatcher(globalNode)) {
-						actualizarServidor(globalNode);
-						
-					}
-										
+				List<String> list = zk.getChildren(rootOperations, watcherOperations); //this);
 
+				if (event.getType()!=Watcher.Event.EventType.NodeDeleted) {
+					System.out.println("        Update!!");
+					System.out.println("Se ha producido un evento de tipo "+event.getType());
+					System.out.println("El valor de event.getPath del parent es "+event.getPath());
+					List<String> list1 = zk.getChildren(rootOperations, watcherOperations); //this);
+
+					printListOperations(list1);
+					
+					
+					Stat globalNode = zk.exists(rootState+aglobal, null);
+					String global_string = new String(zk.getData(rootState+aglobal, null, globalNode));
+		
+					Stat nodo_operacion = zk.exists(rootOperations+aoperation+global_string,watcherOperations);
+					if(nodo_operacion != null) {
+						System.out.println("\nSe ha creado un nuevo nodo operación:  " + rootOperations+aoperation+global_string);
+						byte [] datos = zk.getData(rootOperations+aoperation+global_string, null, nodo_operacion);
+						System.out.println("La operación es la siguiente: "+new String(datos));
+						
+						
+						if (atenderWatcher(globalNode)) {
+							actualizarServidor(globalNode);
+							
+						}
+											
+	
+					}
 				}
 				
 			} catch (Exception e) {
@@ -313,8 +320,8 @@ public class bankFuncional {
 	
 	public void createOperation(String operation) {
 		try {
-			
 			Stat globalNode = zk.exists(rootState+aglobal, null);
+			limpiarNodos();
 			if (atenderPeticion(globalNode)) {
 				String global_string = new String(zk.getData(rootState+aglobal, null, globalNode));
 				Stat nodo_operacion = zk.exists(rootOperations+aoperation+global_string, null);
@@ -338,7 +345,7 @@ public class bankFuncional {
 					
 				    actualizarGlobal(glob);
 				    //zk.setData(rootState+aglobal, glob.getBytes(), -1);
-					wait();
+					//wait(1000);
 
 				    Stat s = zk.exists(rootOperations, null); //this);
 					Stat opa = zk.exists(rootOperations+"/"+myId, watcherOperations);
@@ -401,12 +408,13 @@ public class bankFuncional {
 	
 	private boolean atenderWatcher(Stat globalNode) {
 		try {
-			
+			Thread.sleep(1000);
+
 			byte [] datos_global = zk.getData(rootState+aglobal, null, globalNode);
 			String datos_str_glob = new String(datos_global);
 			//System.out.println("El valor de datos str es "+datos_str);
 			int global = Integer.parseInt(datos_str_glob);
-			
+			System.out.println("ATENDER WATCHER CON LAST_OPERATION "+last_operation_db+" Y GLOBAL "+global);
 			if (last_operation_db <= global -1) {
 				return true; 
 			}
@@ -536,23 +544,67 @@ public class bankFuncional {
 	
 	private void limpiarNodos() {
 		try {
+			
 			List<String> list_op = zk.getChildren(rootOperations,  null); //this);
 			int num_op = list_op.size();
+			List<Integer> list_op_int = new ArrayList<Integer>();
 			
-			List<String> list_states = zk.getChildren(rootState,  null); //this);
-			int num_sx = list_states.size()-1;
-			
-			int[] states; 
-			
-			for(int i=0; i<num_sx; i++) {
+			for (int i=0; i<list_op.size();i++) {
+				String[] Node_split = list_op.get(i).split("-");
+				int oper = Integer.parseInt(Node_split[1]);
+				list_op_int.add(oper);
 				
 			}
-			Stat globalNode = zk.exists(rootState+aglobal, null);
-			String global_string = new String(zk.getData(rootState+aglobal, null, globalNode));
+			
+			if (num_op>=6) {
+				List<String> list_states = zk.getChildren(rootState,  null); //this);
+				int num_sx = list_states.size()-1;
+				List<Integer> states = new ArrayList<Integer>(); 
+				
+				for(int i=1; i<num_sx+1; i++) {
+					System.out.println("El valor i del bucle es "+i);
+					System.out.println("Accedemos al servidor "+rootState+aserver+i);
+					Stat sxNode = zk.exists(rootState+aserver+i, null);
+					System.out.println("Llega 1");
+					String sx_string = new String(zk.getData(rootState+aserver+i, null, sxNode));
+					System.out.println("Llega 2");
+
+					int sx_int = Integer.parseInt(sx_string);
+					System.out.println("Llega 3");
+
+					states.add(sx_int);
+					System.out.println("Llega 4");
+
+				}
+				System.out.println("Llega 5");
+
+				int minSx = (int)Collections.min(states);
+				System.out.println(list_op.get(0));
+				System.out.println("Llega 6. Valor de minSx es "+minSx);
+				//String[] firstNode_split = list_op.get(0).split("-");
+				//int firstNode = Integer.parseInt(firstNode_split[1]);
+				int firstNode = Collections.min(list_op_int);
+				//Eliminar desde list_op(0) hasta min -1
+				System.out.println("LLega antes del meollo. El valor de firstNode es "+firstNode);
+				for (int i=firstNode; i<minSx-1;i++) {
+					System.out.println("El valor del bucle meollo es "+i);
+					String operation_node_str = String.format("%10s", Integer.toString(i))
+				    	    .replace(' ', '0');
+					System.out.println("Llega 7. Valor de operation_node_str"+operation_node_str);
+					Stat operation_node = zk.exists(rootOperations+aoperation+operation_node_str, null);
+					System.out.println("Llega 8. Valor de string "+rootOperations+aoperation+operation_node_str);
+
+					if (operation_node !=null) {
+						System.out.println("Llega 8.");
+
+						zk.delete(rootOperations+aoperation+operation_node_str, 1);;
+					}	
+				}
+			}	
 			
 			
 		} catch (KeeperException e) {
-			System.out.println("Error actualizando global. KeeperException");
+			System.out.println("Error limpiando nodos. KeeperException");
 		} catch (InterruptedException e) {
 			System.out.println("Error actualizando global. InterruptedException raised");
 		}
